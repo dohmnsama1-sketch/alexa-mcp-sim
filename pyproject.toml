@@ -1,6 +1,6 @@
 [project]
 name = "alexa-mcp-sim"
-version = "0.1.0"
+version = "0.2.0"
 description = "Open-source Echo Show-style voice simulator for any Streamable HTTP MCP server: speech in/out, speaker profiles, MCP Apps cards, JSON-RPC trace, offline or Amazon Bedrock planner."
 readme = "README.md"
 license = "Apache-2.0"
@@ -22,4 +22,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-alexa_mcp_sim = ["static/*.html"]
+alexa_mcp_sim = ["static/*.html", "models/*.json"]

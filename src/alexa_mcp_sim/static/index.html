@@ -73,14 +73,15 @@ function bubble(cls, who, text){ if ($("chat").querySelector(".muted")) $("chat"
 function showTrace(d){ if ($("trace").querySelector(".muted")) $("trace").innerHTML = "";
   if (!d.trace.length) $("trace").insertAdjacentHTML("afterbegin", `<div class="call"><span class="muted">no tool call (${esc(d.planner)})</span></div>`);
   d.trace.slice().reverse().forEach(c => $("trace").insertAdjacentHTML("afterbegin",
-    `<div class="call ${c.is_error ? "err" : ""}"><b>tools/call</b> ${esc(c.tool)} <span class="muted">${c.ms} ms${c.is_error ? " · isError" : ""}</span><pre>args ${esc(JSON.stringify(c.args))}</pre><pre>${esc(c.text)}</pre></div>`)); }
+    `<div class="call ${c.is_error ? "err" : ""}"><b>tools/call</b> ${esc(c.tool)}${c.via ? ` <span class="muted">(${esc(c.via)})</span>` : ""} <span class="muted">${c.ms} ms${c.is_error ? " · isError" : ""}</span><pre>args ${esc(JSON.stringify(c.args))}</pre><pre>${esc(c.text)}</pre></div>`)); }
 
 // Minimal MCP Apps host: answer ui/initialize, then deliver the tool result to the card.
 let pending = null;
 window.addEventListener("message", (ev) => {
   const frame = $("screen").querySelector("iframe"); if (!frame || ev.source !== frame.contentWindow) return;
   const m = ev.data || {};
-  if (m.method === "ui/initialize") frame.contentWindow.postMessage({jsonrpc:"2.0", id:m.id, result:{protocolVersion:"2026-01-26", hostInfo:{name:"alexa-mcp-sim", version:"0.1.0"}, hostCapabilities:{}, hostContext:{theme:"dark", displayMode:"inline", platform:"web"}}}, "*");
+  if (m.method === "ui/initialize") frame.contentWindow.postMessage({jsonrpc:"2.0", id:m.id, result:{protocolVersion:"2026-01-26", hostInfo:{name:"alexa-mcp-sim", version:"0.2.0"}, hostCapabilities:{}, hostContext:{theme:"dark", displayMode:"inline", platform:"web"}}}, "*");
+  if (m.method === "tools/call") onTap(frame, m);
   if (m.method === "ui/notifications/initialized" && pending){ frame.contentWindow.postMessage({jsonrpc:"2.0", method:"ui/notifications/tool-result", params:pending}, "*"); }
 });
 function showText(d){  // tools without a ui:// card get a plain response card, like Echo Show does
@@ -96,6 +97,13 @@ function showCard(ui, d){
   const f = document.createElement("iframe"); f.setAttribute("sandbox", "allow-scripts"); f.title = ui.uri; f.srcdoc = ui.html; $("screen").appendChild(f);
 }
 
+async function onTap(frame, m){  // the card asked us to call a tool (touch on Echo Show)
+  const p = m.params || {}; bubble("u", speaker || "You", "(tapped) " + (titles[p.name] || p.name));
+  const r = await fetch("/api/tap", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({tool:p.name, args:p.arguments||{}, speaker, session})});
+  const d = await r.json();
+  frame.contentWindow && frame.contentWindow.postMessage({jsonrpc:"2.0", id:m.id, result:d.result || {content:[{type:"text", text:d.error||""}], isError:true}}, "*");
+  bubble("a", "Alexa (simulated)", d.speech || d.error); if (d.trace) showTrace(d); showCard(d.ui, d); speak(d.speech);
+}
 function speak(text){
   if (!("speechSynthesis" in window) || !text) return;
   speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text);

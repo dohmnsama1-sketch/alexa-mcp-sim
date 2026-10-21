@@ -59,3 +59,15 @@ def test_context_from_previous_results(planner):
 def test_fallback(planner):
     p = plan(planner, "sing me a song")
     assert p.calls == [] and p.say.startswith("Sorry")
+
+
+def test_bundled_model_matches_example_and_resolves():
+    import json
+    from pathlib import Path
+    from alexa_mcp_sim.app import resolve_model
+    ex = Path(__file__).resolve().parents[1] / "examples" / "careloop.json"
+    assert json.loads(Path(resolve_model("careloop")).read_text()) == json.loads(ex.read_text())
+    assert resolve_model(str(ex)) == str(ex)
+    import pytest
+    with pytest.raises(SystemExit):
+        resolve_model("no-such-model")

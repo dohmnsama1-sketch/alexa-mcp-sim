@@ -7,4 +7,4 @@ live JSON-RPC trace, with two planners: an offline interaction model (sample utt
 skills) and Amazon Bedrock (Converse API tool use) for free-form requests.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

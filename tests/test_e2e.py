@@ -52,7 +52,7 @@ def test_demo_morning(careloop_url):
     app = create_app(Simulator(careloop_url, model, planner="model"), model.raw["members"])
     web = TestClient(app)
     info = web.get("/api/info").json()
-    assert info["server"]["name"] == "careloop" and info["protocol"] == "2026-07-28" and len(info["tools"]) == 16
+    assert info["server"]["name"] == "careloop" and info["protocol"] == "2026-07-28" and len(info["tools"]) == 17
     assert "Alexa, good morning" in info["samples"]
     assert "alexa-mcp-sim" in web.get("/").text
 
@@ -81,6 +81,18 @@ def test_demo_morning(careloop_url):
     assert "wedding photos" in say("What did I miss?", "Omar", sid="s2")["speech"]
     a = say("How has Mom done with her meds this week?", "Sara")
     assert a["ui"]["uri"] == "ui://careloop/adherence.html" and "percent" in a["speech"]
+    r = say("How did we do as a family this week?", "Sara")
+    assert r["ui"]["uri"] == "ui://careloop/report.html"
+    m = r["ui"]["result"]["structuredContent"]["metrics"]
+    assert m["double_doses_prevented"] == 1 and m["refills_before_running_out"] == 1 and m["alerts_acknowledged"] == 1
+    # touch on the Echo Show card: the MCP App asks the host to call a tool, the host fills in the speaker
+    t = web.post("/api/tap", json={"tool": "meds_due", "args": {}, "speaker": "Leila", "session": "s4"}).json()
+    assert t["planner"] == "touch" and t["trace"][0]["via"] == "touch" and t["ui"]["uri"] == "ui://careloop/doses.html"
+    t = web.post("/api/tap", json={"tool": "dose_log", "args": {"medication": "Vitamin D3", "status": "taken"},
+                                   "speaker": "Leila", "session": "s4"}).json()
+    assert t["trace"][0]["args"]["speaker"] == "Leila" and "Got it" in t["speech"] and not t["result"]["isError"]
+    assert web.post("/api/tap", json={"tool": "nope", "args": {}}).status_code == 502
+    assert web.post("/api/tap", json={"args": {}}).status_code == 400
     err = say("Bob took his lisinopril", "Bob", sid="s9")
     assert err["trace"][0]["is_error"] and "don't know Bob" in err["speech"]
 
