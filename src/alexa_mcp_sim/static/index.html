@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>alexa-mcp-sim</title>
+<style>
+:root{--bg:#070b14;--panel:#0e1526;--line:#1f2a44;--ink:#e9efff;--mute:#8d9bbb;--acc:#33c6ff;--ok:#3ddc97;--bad:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 600px at 30% -10%,#13213f,var(--bg));color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+header{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+header b{font-size:17px}.badge{font-size:12px;padding:3px 9px;border-radius:999px;background:#13203a;color:var(--mute);border:1px solid var(--line)}
+.badge.ok{color:var(--ok);border-color:#1d4a39}.badge.bad{color:var(--bad);border-color:#4a1d1d}
+main{display:grid;grid-template-columns:minmax(520px,1.35fr) minmax(340px,1fr);gap:22px;padding:22px}
+.device{background:#05070c;border-radius:28px;padding:18px 18px 26px;box-shadow:0 30px 80px #0009,inset 0 0 0 2px #1b2233}
+.screen{aspect-ratio:16/10;background:#0b1220;border-radius:14px;overflow:hidden;position:relative}
+.screen iframe{width:100%;height:100%;border:0;display:block}
+.idle{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:40px}
+.idle .clock{font-size:64px;font-weight:800;letter-spacing:-1px}.idle .hint{color:var(--mute);margin-top:6px;font-size:18px}
+.bar{height:6px;margin:16px auto 0;width:60%;border-radius:6px;background:#1a2236;transition:.3s}
+.bar.listen{background:linear-gradient(90deg,#0b4ea2,var(--acc),#0b4ea2);background-size:200%;animation:flow 1s linear infinite}
+.bar.speak{background:var(--acc);box-shadow:0 0 18px var(--acc)}@keyframes flow{to{background-position:200%}}
+.controls{margin-top:16px}.who{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;color:var(--mute);font-size:13px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;font:inherit}
+.chip.on{border-color:var(--acc);color:var(--acc)}
+.say{display:flex;gap:10px}.say input{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px 14px;font:inherit;font-size:16px}
+button.mic{width:50px;border-radius:50%;border:0;background:var(--acc);color:#001;font-size:20px;cursor:pointer}button.mic.on{background:#ff4d6d}
+.samples{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.samples .chip{font-size:13px;color:var(--mute)}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}.box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.box h3{margin:0 0 10px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.chat{max-height:290px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.msg{padding:9px 12px;border-radius:12px;max-width:92%}.u{align-self:flex-end;background:#16305a}.a{background:#101c33;border:1px solid var(--line)}
+.msg small{display:block;color:var(--mute);font-size:11px;margin-bottom:2px}
+.trace{max-height:380px;overflow:auto;font:12px/1.45 ui-monospace,Menlo,monospace}
+.call{border-left:3px solid var(--ok);padding:6px 10px;margin-bottom:8px;background:#0a1222;border-radius:6px}.call.err{border-color:var(--bad)}
+.call b{color:var(--acc)}.call pre{white-space:pre-wrap;word-break:break-word;margin:4px 0 0;color:#b9c6e4;max-height:140px;overflow:auto}
+.muted{color:var(--mute)}
+</style></head><body>
+<header><b>alexa-mcp-sim</b><span class="badge" id="conn">connecting...</span><span class="badge" id="proto"></span><span class="badge" id="plan"></span><span class="badge" id="tools"></span></header>
+<main>
+<section>
+  <div class="device"><div class="screen" id="screen"><div class="idle" id="idle"><div class="clock" id="clock"></div><div class="hint" id="hint">Pick who is speaking, then tap the mic or type.</div></div></div><div class="bar" id="bar"></div></div>
+  <div class="controls">
+    <div class="who" id="who"><span>Speaker (voice ID):</span></div>
+    <div class="say"><button class="mic" id="mic" title="Push to talk">🎙</button><input id="text" placeholder="Say or type, e.g. &quot;Alexa, good morning&quot;" autocomplete="off"></div>
+    <div class="samples" id="samples"></div>
+  </div>
+</section>
+<section class="side">
+  <div class="box"><h3>Conversation</h3><div class="chat" id="chat"><span class="muted">Nothing yet.</span></div></div>
+  <div class="box"><h3>MCP trace (Streamable HTTP)</h3><div class="trace" id="trace"><span class="muted">Tool calls appear here.</span></div></div>
+</section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let speaker = "", session = crypto.randomUUID(), titles = {};
+setInterval(() => { const c = $("clock"); if (c) c.textContent = new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }, 1000);
+
+async function boot(){
+  const r = await fetch("/api/info"); const d = await r.json();
+  if (!r.ok){ $("conn").textContent = d.error; $("conn").className = "badge bad"; return; }
+  $("conn").textContent = `${d.server?.title || d.server?.name} ${d.server?.version || ""}`; $("conn").className = "badge ok";
+  d.tools.forEach(t => titles[t.name] = t.title || t.name);
+  $("proto").textContent = "MCP " + d.protocol; $("plan").textContent = "planner: " + d.planner; $("tools").textContent = d.tools.length + " tools";
+  (d.members.length ? d.members : ["Guest"]).forEach((m, i) => {
+    const b = document.createElement("button"); b.className = "chip" + (i ? "" : " on"); b.textContent = m;
+    b.onclick = () => { document.querySelectorAll(".who .chip").forEach(x => x.classList.remove("on")); b.classList.add("on"); speaker = m; };
+    $("who").appendChild(b); if (!i) speaker = m;
+  });
+  d.samples.forEach(s => { const b = document.createElement("button"); b.className = "chip"; b.textContent = "“" + s + "”"; b.onclick = () => send(s); $("samples").appendChild(b); });
+}
+
+function bubble(cls, who, text){ if ($("chat").querySelector(".muted")) $("chat").innerHTML = "";
+  $("chat").insertAdjacentHTML("beforeend", `<div class="msg ${cls}"><small>${esc(who)}</small>${esc(text)}</div>`); $("chat").scrollTop = 1e9; }
+
+function showTrace(d){ if ($("trace").querySelector(".muted")) $("trace").innerHTML = "";
+  if (!d.trace.length) $("trace").insertAdjacentHTML("afterbegin", `<div class="call"><span class="muted">no tool call (${esc(d.planner)})</span></div>`);
+  d.trace.slice().reverse().forEach(c => $("trace").insertAdjacentHTML("afterbegin",
+    `<div class="call ${c.is_error ? "err" : ""}"><b>tools/call</b> ${esc(c.tool)} <span class="muted">${c.ms} ms${c.is_error ? " · isError" : ""}</span><pre>args ${esc(JSON.stringify(c.args))}</pre><pre>${esc(c.text)}</pre></div>`)); }
+
+// Minimal MCP Apps host: answer ui/initialize, then deliver the tool result to the card.
+let pending = null;
+window.addEventListener("message", (ev) => {
+  const frame = $("screen").querySelector("iframe"); if (!frame || ev.source !== frame.contentWindow) return;
+  const m = ev.data || {};
+  if (m.method === "ui/initialize") frame.contentWindow.postMessage({jsonrpc:"2.0", id:m.id, result:{protocolVersion:"2026-01-26", hostInfo:{name:"alexa-mcp-sim", version:"0.1.0"}, hostCapabilities:{}, hostContext:{theme:"dark", displayMode:"inline", platform:"web"}}}, "*");
+  if (m.method === "ui/notifications/initialized" && pending){ frame.contentWindow.postMessage({jsonrpc:"2.0", method:"ui/notifications/tool-result", params:pending}, "*"); }
+});
+function showText(d){  // tools without a ui:// card get a plain response card, like Echo Show does
+  $("screen").querySelectorAll("iframe").forEach(f => f.remove());
+  const tool = (d.trace || []).slice(-1)[0];
+  $("idle").innerHTML = `<div class="hint" style="margin:0 0 10px">${esc(tool ? (tool.is_error ? "Couldn't do that" : (titles[tool.tool] || tool.tool)) : "Alexa")}</div><div style="font-size:30px;font-weight:700;line-height:1.3">${esc(d.speech)}</div>`;
+  $("idle").style.display = "flex";
+}
+function showCard(ui, d){
+  if (!ui){ showText(d); return; }
+  $("idle").style.display = "none"; $("screen").querySelectorAll("iframe").forEach(f => f.remove());
+  pending = ui.result;
+  const f = document.createElement("iframe"); f.setAttribute("sandbox", "allow-scripts"); f.title = ui.uri; f.srcdoc = ui.html; $("screen").appendChild(f);
+}
+
+function speak(text){
+  if (!("speechSynthesis" in window) || !text) return;
+  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text);
+  const v = speechSynthesis.getVoices().find(v => /en-US/.test(v.lang) && /Female|Samantha|Aria|Jenny|Google US/.test(v.name)); if (v) u.voice = v;
+  u.rate = 1.03; u.onstart = () => $("bar").className = "bar speak"; u.onend = () => $("bar").className = "bar"; speechSynthesis.speak(u);
+}
+
+async function send(text){
+  text = text.trim(); if (!text) return; $("text").value = ""; bubble("u", speaker || "You", text); $("bar").className = "bar listen";
+  const r = await fetch("/api/utter", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, speaker, session})});
+  const d = await r.json(); $("bar").className = "bar";
+  bubble("a", "Alexa (simulated)", d.speech || d.error); if (d.trace) showTrace(d); showCard(d.ui, d); speak(d.speech);
+}
+$("text").addEventListener("keydown", e => { if (e.key === "Enter") send($("text").value); });
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) $("mic").title = "Speech recognition needs Chrome or Edge; type instead";
+$("mic").onclick = () => {
+  if (!SR){ $("text").focus(); return; }
+  const rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; $("mic").classList.add("on"); $("bar").className = "bar listen";
+  rec.onresult = (e) => { const t = Array.from(e.results).map(r => r[0].transcript).join(""); $("text").value = t; if (e.results[e.results.length-1].isFinal) send(t); };
+  rec.onend = () => { $("mic").classList.remove("on"); if ($("bar").className.includes("listen")) $("bar").className = "bar"; };
+  rec.start();
+};
+boot();
+</script></body></html>
