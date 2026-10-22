@@ -1,6 +1,6 @@
 # alexa-mcp-sim
 
-![tests](https://img.shields.io/badge/tests-21%20passing-3ddc97) ![coverage](https://img.shields.io/badge/coverage-90%25-3ddc97) ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5ab4ff) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![CI](https://github.com/dohmnsama1-sketch/alexa-mcp-sim/actions/workflows/ci.yml/badge.svg)](https://github.com/dohmnsama1-sketch/alexa-mcp-sim/actions/workflows/ci.yml) ![tests](https://img.shields.io/badge/tests-21%20passing-3ddc97) ![coverage](https://img.shields.io/badge/coverage-90%25-3ddc97) ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5ab4ff) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **An open-source, Echo Show-style voice simulator for any Streamable HTTP MCP server.** See and hear your MCP server the way an Alexa+ customer would, with voice, speaker profiles, screen cards, touch and a live protocol trace.
 

@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      # CareLoop is the reference server for the end-to-end test (real Streamable HTTP).
+      - run: pip install -e ".[test]" pytest-cov "careloop @ git+https://github.com/dohmnsama1-sketch/careloop@main"
+      - run: pytest -q --cov=alexa_mcp_sim --cov-report=term-missing
