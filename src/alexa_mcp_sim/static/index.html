@@ -51,7 +51,10 @@ button.mic{width:50px;border-radius:50%;border:0;background:var(--acc);color:#00
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let speaker = "", session = crypto.randomUUID(), titles = {};
-setInterval(() => { const c = $("clock"); if (c) c.textContent = new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }, 1000);
+// ?time=8:05 AM pins the idle clock to a demo household's frozen time (useful for recordings).
+const FIXED_TIME = new URLSearchParams(location.search).get("time");
+const tick = () => { const c = $("clock"); if (c) c.textContent = FIXED_TIME || new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); };
+tick(); setInterval(tick, 1000);
 
 async function boot(){
   const r = await fetch("/api/info"); const d = await r.json();
